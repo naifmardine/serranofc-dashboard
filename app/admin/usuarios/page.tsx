@@ -3,13 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Pencil, Trash, User as UserIcon, Mail, RefreshCcw } from "lucide-react";
-import { Role } from "@prisma/client";
+import {
+  PlusCircle,
+  Pencil,
+  Trash,
+  User as UserIcon,
+  Mail,
+  RefreshCcw,
+} from "lucide-react";
 
 import AdminRow from "@/components/AdminRow";
 import AdminButton from "@/components/Atoms/AdminButton";
 import ConfirmDeleteDialog from "@/components/Atoms/ConfirmDeleteDialog";
 import CopySecretDialog from "@/components/Atoms/CopySecretDialog";
+
+/**
+ * NÃO importamos enums do Prisma no client.
+ * Mantém o build do Vercel/Next estável e evita acoplamento.
+ */
+type Role = "ADMIN" | "CLIENT";
 
 interface User {
   id: string;
@@ -20,9 +32,15 @@ interface User {
   image: string | null;
 }
 
-function formatCreatedAt(input: any) {
+type NewUserForm = {
+  name: string;
+  email: string;
+  role: Role;
+};
+
+function formatCreatedAt(input: unknown) {
   if (!input) return "--/--/----";
-  const d = new Date(input);
+  const d = new Date(input as any);
   if (Number.isNaN(d.getTime())) return "--/--/----";
   return d.toLocaleDateString("pt-BR");
 }
@@ -39,7 +57,8 @@ function generateStrongPassword(length = 20) {
   const symbols = "!@#$%&*_-+=?";
   const all = upper + lower + digits + symbols;
 
-  const pick = (charset: string) => charset[Math.floor(Math.random() * charset.length)];
+  const pick = (charset: string) =>
+    charset[Math.floor(Math.random() * charset.length)];
 
   // garante variedade mínima
   let pwd = pick(upper) + pick(lower) + pick(digits) + pick(symbols);
@@ -55,9 +74,12 @@ function generateStrongPassword(length = 20) {
   // embaralha
   const arr = pwd.split("");
   for (let i = arr.length - 1; i > 0; i--) {
-    const j = bytes.length ? bytes[i % bytes.length] % (i + 1) : Math.floor(Math.random() * (i + 1));
+    const j = bytes.length
+      ? bytes[i % bytes.length] % (i + 1)
+      : Math.floor(Math.random() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
+
   return arr.join("");
 }
 
@@ -74,12 +96,12 @@ export default function AdminUsersPage() {
 
   // Modal de criação
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newUser, setNewUser] = useState({
+  const [newUser, setNewUser] = useState<NewUserForm>({
     name: "",
     email: "",
-    role: "CLIENT" as Role,
+    role: "CLIENT",
   });
-  const [tempPassword, setTempPassword] = useState(""); // 👈 senha gerada (não input)
+  const [tempPassword, setTempPassword] = useState(""); // senha gerada (não input)
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Popup copiar (pós-criação)
@@ -131,7 +153,7 @@ export default function AdminUsersPage() {
         throw new Error(text || "Falha ao carregar usuários");
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as User[];
       setUsers(data);
     } catch (err: any) {
       setError(err?.message || "Erro ao carregar usuários");
@@ -152,7 +174,7 @@ export default function AdminUsersPage() {
 
       const payload = {
         ...newUser,
-        password: tempPassword, // 👈 envia senha gerada
+        password: tempPassword,
       };
 
       const res = await fetch("/api/usuarios", {
@@ -169,7 +191,7 @@ export default function AdminUsersPage() {
         throw new Error(data.error || "Falha ao criar usuário");
       }
 
-      const created = await res.json();
+      const created = (await res.json()) as User;
       setUsers((prev) => [created, ...prev]);
 
       // prepara popup de copiar
@@ -222,7 +244,7 @@ export default function AdminUsersPage() {
         throw new Error(data.error || "Falha ao atualizar usuário");
       }
 
-      const updated = await res.json();
+      const updated = (await res.json()) as User;
       setUsers((prev) => prev.map((u) => (u.id === id ? updated : u)));
 
       setShowEditModal(false);
@@ -342,9 +364,13 @@ export default function AdminUsersPage() {
       </div>
 
       {isLoadingUsers ? (
-        <div className="py-10 text-center text-gray-500">Carregando usuários...</div>
+        <div className="py-10 text-center text-gray-500">
+          Carregando usuários...
+        </div>
       ) : users.length === 0 ? (
-        <div className="py-10 text-center text-gray-500">Nenhum usuário encontrado</div>
+        <div className="py-10 text-center text-gray-500">
+          Nenhum usuário encontrado
+        </div>
       ) : (
         users.map((u) => (
           <AdminRow
@@ -383,7 +409,8 @@ export default function AdminUsersPage() {
                     Criar usuário
                   </div>
                   <div className="mt-1 text-xs text-gray-600">
-                    A senha é gerada automaticamente e será trocada no primeiro login.
+                    A senha é gerada automaticamente e será trocada no primeiro
+                    login.
                   </div>
                 </div>
 
@@ -398,13 +425,17 @@ export default function AdminUsersPage() {
 
               <form onSubmit={handleCreateUser} className="p-4 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Nome</label>
+                  <label className="block text-sm font-semibold mb-1">
+                    Nome
+                  </label>
                   <div className="relative">
                     <UserIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
                       value={newUser.name}
-                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, name: e.target.value })
+                      }
                       required
                       disabled={isSubmitting}
                       className="w-full pl-9 pr-3 py-2 rounded-[10px] border border-gray-300 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
@@ -414,13 +445,17 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Email</label>
+                  <label className="block text-sm font-semibold mb-1">
+                    Email
+                  </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="email"
                       value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, email: e.target.value })
+                      }
                       required
                       disabled={isSubmitting}
                       className="w-full pl-9 pr-3 py-2 rounded-[10px] border border-gray-300 text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
@@ -430,11 +465,16 @@ export default function AdminUsersPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Tipo de acesso</label>
+                  <label className="block text-sm font-semibold mb-1">
+                    Tipo de acesso
+                  </label>
                   <select
                     value={newUser.role}
                     onChange={(e) =>
-                      setNewUser({ ...newUser, role: e.target.value as Role })
+                      setNewUser({
+                        ...newUser,
+                        role: e.target.value as Role,
+                      })
                     }
                     disabled={isSubmitting}
                     className="w-full px-3 py-2 rounded-[10px] border border-gray-300 bg-white text-sm text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
@@ -446,7 +486,9 @@ export default function AdminUsersPage() {
 
                 {/* senha gerada */}
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Senha temporária</label>
+                  <label className="block text-sm font-semibold mb-1">
+                    Senha temporária
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -531,7 +573,9 @@ export default function AdminUsersPage() {
                 className="p-4 space-y-4"
               >
                 <div>
-                  <label className="block text-sm font-semibold mb-1">Nome</label>
+                  <label className="block text-sm font-semibold mb-1">
+                    Nome
+                  </label>
                   <input
                     type="text"
                     value={editName}
@@ -551,7 +595,9 @@ export default function AdminUsersPage() {
                   </div>
                   <div className="mt-1 text-xs text-gray-600">
                     Tipo:{" "}
-                    <span className="font-semibold">{roleLabel(editUser.role)}</span>
+                    <span className="font-semibold">
+                      {roleLabel(editUser.role)}
+                    </span>
                   </div>
                 </div>
 
